@@ -33,8 +33,7 @@ my-app/
 ├── package.json
 ├── tsconfig.json
 ├── nest-cli.json
-└── README.md
-```
+└── README.md```
 
 
 
