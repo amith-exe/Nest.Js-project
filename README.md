@@ -13,12 +13,16 @@ It is built on top of Express (by default) and deeply utilizes TypeScript to pro
 It adopts design patterns from Angular. This means it uses things like Decorators (@Controller(), @Injectable())
 
 # Install Nest CLI
+for using the nest in our project
 
 ```npm install -g @nestjs/cli```
-
+ 
 ## starting new project 
-```nest new my-app```
+```nest new my-app
+  cd my-app
+```
 ->will create the following files
+then go inside my-app dir to start working with our project/app
 
 ````
 my-app/
@@ -34,6 +38,8 @@ my-app/
 ├── tsconfig.json
 ├── nest-cli.json
 └── README.md```
+
+example 
 
 
 
