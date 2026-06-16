@@ -53,7 +53,7 @@ bootstrap();
 
   current thing in this file
 
-  ```import { Controller, Get } from '@nestjs/common';
+``` import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';  // it is called from the app.service file that contain the hello word
 
 @Controller()
