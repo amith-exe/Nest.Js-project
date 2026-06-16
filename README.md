@@ -24,8 +24,7 @@ for using the nest in our project
 ->will create the following files
 then go inside my-app dir to start working with our project/app
 
-````
-my-app/
+```my-app/
 │
 ├── src/
 │   ├── app.controller.ts
@@ -37,7 +36,8 @@ my-app/
 ├── package.json
 ├── tsconfig.json
 ├── nest-cli.json
-└── README.md ```
+└── README.md
+```
 
 example 
 
