@@ -55,7 +55,8 @@ eslint.config.mjs→ Code quality rules
 .gitignore       → Files Git should ignore
 README.md        → Documentation
 ```
-5. .prettierrc
+
+```5. .prettierrc
 
 Configuration for Prettier.
 
@@ -161,7 +162,7 @@ Usually:
 ✅ Commit it to Git
 
 ❌ Don't edit manually.
-
+```
 
 
 
