@@ -38,8 +38,17 @@ then go inside my-app dir to start working with our project/app
 ├── nest-cli.json
 └── README.md
 ```
+main.ts : this is the start the server at port 3000 
+ ```import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
 
-example 
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await app.listen(process.env.PORT ?? 3000);
+}
+bootstrap();
+```
+
 
 
 
