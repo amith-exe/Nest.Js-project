@@ -38,6 +38,133 @@ then go inside my-app dir to start working with our project/app
 ├── nest-cli.json
 └── README.md
 ```
+## Details
+
+```main.ts          → Starts application
+app.module.ts    → Organizes application
+app.controller.ts→ Receives requests
+app.service.ts   → Business logic
+
+test/            → Testing
+package.json     → Project blueprint
+node_modules/    → Installed libraries
+nest-cli.json    → Nest CLI settings
+tsconfig.json    → TypeScript settings
+eslint.config.mjs→ Code quality rules
+.prettierrc      → Code formatting rules
+.gitignore       → Files Git should ignore
+README.md        → Documentation
+```
+5. .prettierrc
+
+Configuration for Prettier.
+
+Prettier automatically formats code.
+
+Example:
+
+Before:
+
+const user={name:"John"}
+
+After:
+
+const user = { name: 'John' };
+
+Keeps code clean and consistent.
+
+6. eslint.config.mjs
+
+Configuration for ESLint.
+
+ESLint finds problems.
+
+Example:
+
+Bad:
+
+const a = 10;
+const b = 20;
+
+If b is never used:
+
+'b' is assigned a value but never used
+
+It helps keep code quality high.
+
+7. nest-cli.json
+
+Configuration for Nest CLI.
+
+Example:
+
+{
+  "sourceRoot": "src"
+}
+
+When you run:
+
+nest generate module users
+
+Nest CLI reads this file to know where to create files.
+
+8. package.json
+
+Probably the most important configuration file.
+
+Contains:
+
+Project information
+{
+  "name": "my-app",
+  "version": "0.0.1"
+}
+Scripts
+"scripts": {
+  "start": "nest start",
+  "start:dev": "nest start --watch",
+  "build": "nest build",
+  "test": "jest"
+}
+
+You execute them with:
+
+npm run start
+npm run start:dev
+npm run build
+npm run test
+Dependencies
+"dependencies": {
+  "@nestjs/common": "...",
+  "@nestjs/core": "...",
+  "rxjs": "..."
+}
+
+Think of package.json as:
+
+Project Blueprint
+9. package-lock.json
+
+Generated automatically by npm.
+
+Stores exact package versions.
+
+Example:
+
+express -> 5.1.0
+rxjs -> 7.8.1
+
+Ensures everyone on the team installs the same versions.
+
+Usually:
+
+✅ Commit it to Git
+
+❌ Don't edit manually.
+
+
+
+
 * main.ts : this is the start the server at port 3000 
  ```import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -180,7 +307,7 @@ export class SongsController {
   }
 }
 ```
-## INnsted of this we  create Generate a complete resource (Module + Controller + Service + DTO)
+## Insted of this we  create Generate a complete resource (Module + Controller + Service + DTO)
 
  using --> ```nest g resource user``` or songs 
 
@@ -209,4 +336,26 @@ then it will create file like this
 └── users.controller.spec.ts
 └── users.service.spec.ts
 ```
+# how we can test this API ?
+
+here we can use rest client in vs code 
+
+install it and crate a file with ```.http``` extension and type all the end points to test in vs code
+
+#### like this 
+```### Get all songs
+GET http://localhost:3000/songs
+
+### Add a new song
+POST http://localhost:3000/songs
+Content-Type: application/json
+
+{
+  "title": "Starboy"
+}
+
+### Get a single song by ID (Testing the route)
+GET http://localhost:3000/songs/1
+```
+# DTO (Data Transfer Object)
 
