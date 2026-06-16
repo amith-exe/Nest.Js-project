@@ -87,5 +87,15 @@ after intailzng with ```npm new project_name``` we will get files like this
 
 * in src/ the controller.spec.ts is for testing app moduel sperately
 
+#Modules 
+
+![alt text](image-2.png)
+
+here in this each featuer is module 
+auth module , user moduel , login moduel like that eah thing has spearte controller ,service and modules 
+-> everthing is conrolled  by app moduel the whole project 
+
+
+
 
 
