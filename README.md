@@ -87,15 +87,126 @@ after intailzng with ```npm new project_name``` we will get files like this
 
 * in src/ the controller.spec.ts is for testing app moduel sperately
 
-#Modules 
+# Modules 
 
 ![alt text](image-2.png)
 
-here in this each featuer is module 
+
+here in this each featuer is module like 
 auth module , user moduel , login moduel like that eah thing has spearte controller ,service and modules 
+
 -> everthing is conrolled  by app moduel the whole project 
 
+### Creating other featuers 
 
+creating user module use this command ```nest g co songs --no-spec```
 
+* co stands for controller. Adding --no-spec tells the CLI not to create the test file, keeping our folder clean just like you wanted
 
+then add some code in it 
+
+* Open src/songs/songs.controller.ts. Let's add some routes for our API:
+
+```import { Controller, Get, Post, Delete, Put } from '@nestjs/common';
+
+@Controller('songs') // This means all routes inside this controller start with /songs
+export class SongsController {
+
+  @Post()
+  createSong() {
+    return 'This action adds a new song';
+  }
+
+  @Get()
+  findAllSongs() {
+    return 'This action returns all songs';
+  }
+
+  @Get(':id')
+  findOneSong() {
+    return 'This action returns a single song based on ID';
+  }
+
+  @Put(':id')
+  updateSong() {
+    return 'This action updates a song';
+  }
+
+  @Delete(':id')
+  deleteSong() {
+    return 'This action deletes a song';
+  }
+}
+```
+* then creating service ```nest g s songs --no-spec```
+ s for service 
+
+ ```import { Injectable } from '@nestjs/common';
+
+@Injectable() // This decorator makes it a provider that can be injected into controllers
+export class SongsService {
+  // Temporary local array data
+  private readonly songs: string[] = ['Bohemian Rhapsody', 'Hotel California', 'Blinding Lights'];
+
+  create(song: string) {
+    this.songs.push(song);
+    return `Song "${song}" added successfully!`;
+  }
+
+  findAll() {
+    return this.songs;
+  }
+}
+```
+---> connect the controller and the service by going to controller
+* Go back to src/songs/songs.controller.ts and update it to look like this:
+
+```import { Controller, Get, Post, Body } from '@nestjs/common';
+import { SongsService } from './songs.service'; // 1. Import the service
+
+@Controller('songs')
+export class SongsController {
+  // 2. Inject the service via the constructor
+  constructor(private songsService: SongsService) {}
+
+  @Post()
+  createSong(@Body('title') title: string) { // @Body extracts the payload from the request
+    return this.songsService.create(title);   // 3. Call service method
+  }
+
+  @Get()
+  findAllSongs() {
+    return this.songsService.findAll();       // 3. Call service method
+  }
+}
+```
+## INnsted of this we  create Generate a complete resource (Module + Controller + Service + DTO)
+
+ using --> ```nest g resource user``` or songs 
+
+```It will ask:
+
+? What transport layer do you use?
+❯ REST API
+
+Then:
+
+? Would you like to generate CRUD entry points?
+❯ Yes
+```
+
+then it will create file like this
+
+```src/user/
+├── dto/
+│   ├── create-user.dto.ts
+│   └── update-user.dto.ts
+├── entities/
+│   └── user.entity.ts
+├── users.controller.ts
+├── users.service.ts
+├── users.module.ts
+└── users.controller.spec.ts
+└── users.service.spec.ts
+```
 
