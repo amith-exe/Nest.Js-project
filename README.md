@@ -55,8 +55,8 @@ eslint.config.mjs→ Code quality rules
 .gitignore       → Files Git should ignore
 README.md        → Documentation
 ```
-
-```5. .prettierrc
+* detalis of other files
+``` .prettierrc
 
 Configuration for Prettier.
 
@@ -353,10 +353,259 @@ Content-Type: application/json
 
 {
   "title": "Starboy"
-}
+} 
 
 ### Get a single song by ID (Testing the route)
 GET http://localhost:3000/songs/1
 ```
 # DTO (Data Transfer Object)
 
+for this wee need to install ```npm install class-validator class-transformer```
+
+after installing we should tell src/main.ts  applay it to all of the project like this
+
+```import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common'; // 1. Import ValidationPipe
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  
+  app.useGlobalPipes(new ValidationPipe()); // 2. Turn on automatic validation!
+  
+  await app.listen(3000);
+}
+bootstrap();
+```
+* then we should create  file for creating dto validating class
+
+src/songs/dto/create-song.dto.ts
+```import { IsString, IsNotEmpty, IsArray, IsDateString } from 'class-validator';
+
+export class CreateSongDto {
+  @IsString()
+  @IsNotEmpty()
+  readonly title: string;
+
+  @IsArray()
+  @IsString({ each: true }) // Every item inside the array must be a string
+  readonly artists: string[];
+
+  @IsDateString()
+  readonly releaseDate: string;
+}
+```
+
+update the controller to use the class validator
+
+```import { Controller, Post, Body } from '@nestjs/common';
+import { CreateSongDto } from './dto/create-song.dto'; // Import the DTO
+import { SongsService } from './songs.service';
+
+@Controller('songs')
+export class SongsController {
+  constructor(private songsService: SongsService) {}
+
+  @Post()
+  createSong(@Body() createSongDto: CreateSongDto) { // Enforce the DTO validation rules
+    return this.songsService.create(createSongDto.title);
+  }
+}
+
+```import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class SongsService {
+  private readonly songs: string[] = []; // Your temporary array
+
+  create_song(title: string) { // 👈 Must match the name called in controller
+    this.songs.push(title);
+    return `Song "${title}" added successfully!`;
+  }
+}
+```
+* so there will be comfussion in the name of function here the names are same but they do diff thing becuse there in diff class one in controller and other in service
+
+* @Boday()
+used with POST
+it will help as to extarct boady of the request from the user
+
+-> example
+request from user 
+```POST /auth/login
+Content-Type: application/json
+
+{
+  "email": "john@gmail.com",
+  "password": "123456"
+}
+```
+-> the controller takes the request 
+
+```@Post('login')
+login(@Body() loginDto: LoginDto) {
+  return loginDto;
+}
+```
+->then we typescripte will convert that json to this formate
+
+```const loginDto = {
+  email: 'john@gmail.com',
+  password: '123456',
+};
+```
+->with out dto object we can use type any
+we can also exctart only oe thing from the boady like this
+```ogin(@Body(email) boday_email: type) {
+  return lboday_email
+}
+```
+here we will take only the email from the response
+
+
+* Param()
+ it is used in GET request to extract content from url or used with PUT
+GET /users/15
+ ```@Get(':id')
+findOne(@Param('id') id: string) {
+  return this.usersService.findOne(id);
+}
+```
+this will take that 15 from the url by defult it is string we can also convert it to other type
+
+# NestJS Request Decorators
+
+## Rule of Thumb
+
+| Decorator    | Gets Data From        | Example                        |
+| ------------ | --------------------- | ------------------------------ |
+| `@Body()`    | Request body (JSON)   | `email`, `password`, form data |
+| `@Param()`   | URL path parameters   | `/users/15` → `15`             |
+| `@Query()`   | Query string          | `/users?page=1` → `page=1`     |
+| `@Headers()` | Request headers       | `Authorization` token          |
+| `@Req()`     | Entire request object | Access everything              |
+
+---
+
+## Quick Memory Guide
+
+```text
+POST /users              -> @Body()
+GET  /users/15           -> @Param('id')
+GET  /users?page=2       -> @Query('page')
+GET  /profile            -> @Headers('authorization')
+GET  /anything           -> @Req()
+```
+
+---
+
+## Examples
+
+### `@Body()`
+
+```ts
+@Post()
+create(@Body() dto: CreateUserDto) {
+  return dto;
+}
+```
+
+Request:
+
+```json
+{
+  "name": "Amith",
+  "email": "amith@gmail.com"
+}
+```
+
+---
+
+### `@Param()`
+
+```ts
+@Get(':id')
+findOne(@Param('id') id: string) {
+  return id;
+}
+```
+
+Request:
+
+```http
+GET /users/15
+```
+
+Result:
+
+```ts
+id = "15";
+```
+
+---
+
+### `@Query()`
+
+```ts
+@Get()
+findAll(@Query('page') page: string) {
+  return page;
+}
+```
+
+Request:
+
+```http
+GET /users?page=2
+```
+
+Result:
+
+```ts
+page = "2";
+```
+
+---
+
+### `@Headers()`
+
+```ts
+@Get()
+getProfile(
+  @Headers('authorization') token: string,
+) {
+  return token;
+}
+```
+
+Request:
+
+```http
+Authorization: Bearer xyz123
+```
+
+Result:
+
+```ts
+token = "Bearer xyz123";
+```
+
+---
+
+### `@Req()`
+
+```ts
+@Get()
+getRequest(@Req() req: Request) {
+  console.log(req.body);
+  console.log(req.params);
+  console.log(req.query);
+  console.log(req.headers);
+}
+```
+
+`@Req()` gives you access to the entire HTTP request object.
+
+```
+```
+ 
