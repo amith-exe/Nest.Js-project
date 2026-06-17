@@ -1452,3 +1452,999 @@ Nest Container
 3. `useClass` → Different implementations for development and production.
 4. `useExisting` → Aliasing and reusing existing providers.
 
+# NestJS Middleware
+
+Middleware is a function that runs **before the request reaches the controller**.
+
+---
+
+## Request Flow
+
+```text
+Client
+   ↓
+Middleware
+   ↓
+Controller
+   ↓
+Service
+   ↓
+Database
+   ↓
+Response
+```
+
+Think of Middleware as a **security guard at the entrance**. Every request must pass through it before reaching your application logic.
+
+---
+
+## Why Use Middleware?
+
+Common use cases:
+
+* Logging requests
+* Authentication checks
+* Request timing and analytics
+* Rate limiting
+* Modifying the request object
+* Adding custom data to requests
+
+---
+
+## Creating Middleware
+
+Generate middleware using the Nest CLI:
+
+```bash
+nest g middleware logger
+```
+
+Project structure:
+
+```text
+src/
+└── logger/
+    └── logger.middleware.ts
+```
+
+---
+
+## Basic Middleware
+
+```ts
+import {
+  Injectable,
+  NestMiddleware,
+} from '@nestjs/common';
+
+@Injectable()
+export class LoggerMiddleware
+  implements NestMiddleware
+{
+  use(
+    req: any,
+    res: any,
+    next: () => void,
+  ) {
+    console.log('Request received');
+
+    next();
+  }
+}
+```
+
+---
+
+## Understanding `use()`
+
+```ts
+use(req, res, next)
+```
+
+### `req` - Request Object
+
+Contains information about the incoming request.
+
+```ts
+req.body;
+req.params;
+req.query;
+req.headers;
+req.method;
+req.url;
+```
+
+Example:
+
+Request:
+
+```http
+POST /login
+```
+
+Body:
+
+```json
+{
+  "email": "john@gmail.com"
+}
+```
+
+Inside middleware:
+
+```ts
+console.log(req.body);
+```
+
+Output:
+
+```ts
+{
+  email: 'john@gmail.com',
+}
+```
+
+---
+
+### `res` - Response Object
+
+Represents the outgoing response.
+
+Example:
+
+```ts
+res.status(401).json({
+  message: 'Unauthorized',
+});
+```
+
+If you send a response here, the controller will never execute.
+
+---
+
+### `next()` - Continue Processing
+
+This is the most important function.
+
+```ts
+next();
+```
+
+It means:
+
+> "I have finished my work. Continue to the next step."
+
+---
+
+## With `next()`
+
+```text
+Request
+   ↓
+Middleware
+   ↓
+next()
+   ↓
+Controller
+   ↓
+Response
+```
+
+---
+
+## Without `next()`
+
+```text
+Request
+   ↓
+Middleware
+   ↓
+❌ Request hangs here
+```
+
+The request never reaches the controller.
+
+---
+
+## Logging Middleware Example
+
+```ts
+use(req, res, next) {
+  console.log(req.method);
+  console.log(req.url);
+
+  next();
+}
+```
+
+Request:
+
+```http
+GET /users/10
+```
+
+Output:
+
+```text
+GET
+/users/10
+```
+
+---
+
+## Authentication Middleware Example
+
+```ts
+use(req, res, next) {
+  const token =
+    req.headers.authorization;
+
+  if (!token) {
+    return res
+      .status(401)
+      .json({
+        message: 'Unauthorized',
+      });
+  }
+
+  next();
+}
+```
+
+---
+
+### Request with Token
+
+```http
+GET /profile
+Authorization: Bearer xyz
+```
+
+Flow:
+
+```text
+Request
+   ↓
+Token exists
+   ↓
+next()
+   ↓
+Controller
+```
+
+---
+
+### Request without Token
+
+```http
+GET /profile
+```
+
+Flow:
+
+```text
+Request
+   ↓
+No token
+   ↓
+401 Unauthorized
+   ↓
+Controller never runs
+```
+
+---
+
+## Registering Middleware
+
+### `app.module.ts`
+
+```ts
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+} from '@nestjs/common';
+
+@Module({})
+export class AppModule
+  implements NestModule
+{
+  configure(
+    consumer: MiddlewareConsumer,
+  ) {
+    consumer
+      .apply(LoggerMiddleware)
+      .forRoutes('users');
+  }
+}
+```
+
+---
+
+## Route-Specific Middleware
+
+```text
+GET /users
+      ↓
+LoggerMiddleware
+      ↓
+UsersController
+```
+
+```text
+GET /products
+      ↓
+ProductsController
+```
+
+`LoggerMiddleware` runs only for the `/users` routes.
+
+---
+
+## Multiple Middleware
+
+```ts
+consumer
+  .apply(
+    LoggerMiddleware,
+    AuthMiddleware,
+  )
+  .forRoutes('users');
+```
+
+Execution order:
+
+```text
+Request
+   ↓
+LoggerMiddleware
+   ↓
+AuthMiddleware
+   ↓
+Controller
+```
+
+---
+
+## Accessing Request Data
+
+Request:
+
+```http
+POST /users?page=1
+```
+
+Body:
+
+```json
+{
+  "name": "Amith"
+}
+```
+
+Middleware:
+
+```ts
+use(req, res, next) {
+  console.log(req.body);
+  console.log(req.query);
+  console.log(req.params);
+
+  next();
+}
+```
+
+Output:
+
+```ts
+req.body   // { name: 'Amith' }
+req.query  // { page: '1' }
+req.params // {}
+```
+
+---
+
+## Modifying the Request
+
+Middleware can add custom data.
+
+```ts
+use(req, res, next) {
+  req.user = {
+    id: 1,
+    name: 'Amith',
+  };
+
+  next();
+}
+```
+
+Controller:
+
+```ts
+@Get()
+getProfile(@Req() req) {
+  return req.user;
+}
+```
+
+Response:
+
+```json
+{
+  "id": 1,
+  "name": "Amith"
+}
+```
+
+---
+
+## Real Production Flow
+
+```text
+POST /orders
+      ↓
+LoggerMiddleware
+      ↓
+AuthMiddleware
+      ↓
+req.user = { id: 5 }
+      ↓
+OrdersController
+      ↓
+OrdersService
+      ↓
+Database
+      ↓
+Response
+```
+
+---
+
+# Middleware vs Guards
+
+| Feature                              | Middleware  | Guard         |
+| ------------------------------------ | ----------- | ------------- |
+| Runs Before Controller               | ✅           | ✅             |
+| Can Modify Request                   | ✅           | ❌ Usually No  |
+| Logging                              | ✅           | ❌             |
+| Authentication Checks                | ⚠️ Possible | ✅ Recommended |
+| Authorization (Roles/Permissions)    | ❌           | ✅             |
+| Has Access to Nest Execution Context | ❌           | ✅             |
+
+Execution order:
+
+```text
+Request
+   ↓
+Middleware
+   ↓
+Guard
+   ↓
+Controller
+   ↓
+Service
+   ↓
+Response
+```
+
+---
+
+# Rule of Thumb
+
+```text
+Middleware
+      ↓
+Runs before the controller
+
+req
+      ↓
+Incoming request object
+
+res
+      ↓
+Outgoing response object
+
+next()
+      ↓
+Continue processing
+
+No next()
+      ↓
+Request stops here
+```
+
+---
+
+## Mental Model
+
+```text
+Browser
+   ↓
+Middleware (Security Guard)
+   ↓
+Guard (Permission Checker)
+   ↓
+Controller (Receptionist)
+   ↓
+Service (Worker)
+   ↓
+Database
+   ↓
+Response
+```
+# NestJS Injectable Scopes
+
+By default, every provider in NestJS is a **Singleton**.
+
+However, NestJS supports three provider scopes:
+
+1. `DEFAULT` (Singleton)
+2. `REQUEST`
+3. `TRANSIENT`
+
+---
+
+# What is Provider Scope?
+
+Provider scope determines:
+
+> **How many instances of a provider NestJS creates and when they are created.**
+
+---
+
+# 1. DEFAULT Scope (Singleton)
+
+This is the default behavior.
+
+```ts
+@Injectable()
+export class AuthService {}
+```
+
+Equivalent to:
+
+```ts
+@Injectable({
+  scope: Scope.DEFAULT,
+})
+export class AuthService {}
+```
+
+Nest creates:
+
+```ts
+const authService = new AuthService();
+```
+
+only **once**.
+
+Every request shares the same instance.
+
+---
+
+## Request Flow
+
+```text
+Request 1
+      ↓
+      AuthService Instance
+      ↑
+Request 2
+      ↓
+      Same Instance
+      ↑
+Request 3
+```
+
+---
+
+## Example
+
+```ts
+@Injectable()
+export class CounterService {
+  count = 0;
+
+  increment() {
+    this.count++;
+    return this.count;
+  }
+}
+```
+
+Request 1:
+
+```text
+count = 1
+```
+
+Request 2:
+
+```text
+count = 2
+```
+
+Request 3:
+
+```text
+count = 3
+```
+
+All requests use the same object.
+
+---
+
+## Why Singleton?
+
+Benefits:
+
+* Fast
+* Less memory usage
+* One shared instance
+* Perfect for stateless services
+
+---
+
+## Common Singleton Providers
+
+```text
+AuthService
+UsersService
+PrismaService
+EmailService
+JwtService
+ConfigService
+```
+
+Most providers in production are singletons.
+
+---
+
+# 2. REQUEST Scope
+
+Nest creates a new provider instance for every HTTP request.
+
+```ts
+import {
+  Injectable,
+  Scope,
+} from '@nestjs/common';
+
+@Injectable({
+  scope: Scope.REQUEST,
+})
+export class RequestService {}
+```
+
+---
+
+## Request Flow
+
+```text
+Request 1
+      ↓
+RequestService #1
+
+Request 2
+      ↓
+RequestService #2
+
+Request 3
+      ↓
+RequestService #3
+```
+
+Every request gets its own object.
+
+---
+
+## Example
+
+```ts
+@Injectable({
+  scope: Scope.REQUEST,
+})
+export class RequestService {
+  id = Math.random();
+}
+```
+
+Request:
+
+```text
+GET /users
+```
+
+Response:
+
+```text
+0.4567
+```
+
+Next request:
+
+```text
+GET /users
+```
+
+Response:
+
+```text
+0.8912
+```
+
+Different instance every time.
+
+---
+
+## Use Cases
+
+* Request tracking
+* Correlation IDs
+* Multi-tenancy
+* Per-request context
+* Request-specific data
+
+---
+
+## Real Example
+
+```text
+POST /orders
+      ↓
+RequestService #1
+      ↓
+Stores:
+requestId = abc123
+userId = 5
+```
+
+Another request:
+
+```text
+POST /orders
+      ↓
+RequestService #2
+      ↓
+Stores:
+requestId = xyz456
+userId = 10
+```
+
+No shared state.
+
+---
+
+## Downsides
+
+Every request creates new objects.
+
+```text
+1000 requests
+      ↓
+1000 instances
+```
+
+Higher memory and CPU usage.
+
+Use Request Scope only when necessary.
+
+---
+
+# 3. TRANSIENT Scope
+
+Nest creates a new instance every time the provider is injected.
+
+```ts
+@Injectable({
+  scope: Scope.TRANSIENT,
+})
+export class LoggerService {}
+```
+
+---
+
+## Example
+
+```ts
+@Injectable({
+  scope: Scope.TRANSIENT,
+})
+export class LoggerService {
+  id = Math.random();
+}
+```
+
+---
+
+## Dependency Graph
+
+```text
+UsersService
+      ↓
+LoggerService #1
+
+AuthService
+      ↓
+LoggerService #2
+```
+
+Different instance for every injection.
+
+---
+
+## Example
+
+```ts
+@Injectable()
+export class UsersService {
+  constructor(
+    private logger: LoggerService,
+  ) {}
+}
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private logger: LoggerService,
+  ) {}
+}
+```
+
+Nest creates:
+
+```text
+UsersService
+      ↓
+LoggerService #1
+
+AuthService
+      ↓
+LoggerService #2
+```
+
+---
+
+## Request Flow
+
+Request 1:
+
+```text
+UsersService
+      ↓
+Logger #1
+
+AuthService
+      ↓
+Logger #2
+```
+
+Request 2:
+
+```text
+UsersService
+      ↓
+Logger #3
+
+AuthService
+      ↓
+Logger #4
+```
+
+A brand-new instance is created every time it is injected.
+
+---
+
+# Comparing Scopes
+
+| Scope     | Instances Created          | Shared? | Performance |
+| --------- | -------------------------- | ------- | ----------- |
+| DEFAULT   | One for entire application | ✅ Yes   | 🚀 Fastest  |
+| REQUEST   | One per request            | ❌ No    | ⚠️ Slower   |
+| TRANSIENT | One per injection          | ❌ No    | ⚠️ Slowest  |
+
+---
+
+# Visual Comparison
+
+## DEFAULT (Singleton)
+
+```text
+Request 1 ─┐
+Request 2 ─┼──► AuthService #1
+Request 3 ─┘
+```
+
+---
+
+## REQUEST
+
+```text
+Request 1 ─► AuthService #1
+Request 2 ─► AuthService #2
+Request 3 ─► AuthService #3
+```
+
+---
+
+## TRANSIENT
+
+```text
+UsersService ─► Logger #1
+AuthService ──► Logger #2
+EmailService ─► Logger #3
+```
+
+---
+
+# Which Scope Should I Use?
+
+### DEFAULT
+
+Use for:
+
+* Services
+* Database clients
+* JWT services
+* Config services
+* Caches
+
+---
+
+### REQUEST
+
+Use for:
+
+* Correlation IDs
+* Current user context
+* Request metadata
+* Multi-tenancy
+
+---
+
+### TRANSIENT
+
+Use for:
+
+* Loggers
+* Builders
+* Utility objects
+* Temporary state objects
+
+---
+
+# Rule of Thumb
+
+```text
+DEFAULT
+      ↓
+One instance for the whole app
+
+REQUEST
+      ↓
+One instance per HTTP request
+
+TRANSIENT
+      ↓
+One instance every time it is injected
+```
+
+---
+
+# Mental Model
+
+```text
+DEFAULT
+Manager hires one employee.
+Everyone uses the same employee.
+
+REQUEST
+Manager hires one employee per customer.
+
+TRANSIENT
+Manager hires a brand-new employee
+every time someone asks for one.
+```
+
+In real-world NestJS applications, **90% of providers are Singleton (`DEFAULT`)**, **`REQUEST` is used occasionally**, and **`TRANSIENT` is relatively rare**.
