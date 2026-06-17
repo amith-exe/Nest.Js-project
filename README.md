@@ -997,3 +997,458 @@ Singleton
       ↓
 One instance shared across the application.
 ```
+# NestJS Custom Providers
+
+## What is a Custom Provider?
+
+Normally, Nest creates providers like this:
+
+```ts
+@Injectable()
+export class AuthService {}
+```
+
+```ts
+@Module({
+  providers: [AuthService],
+})
+export class AuthModule {}
+```
+
+Nest internally does:
+
+```ts
+const authService = new AuthService();
+```
+
+---
+
+## Why Custom Providers?
+
+Sometimes you want to:
+
+* Inject configuration values
+* Inject API keys
+* Use different implementations
+* Create objects manually
+* Create objects asynchronously
+* Use interfaces or tokens
+
+For these cases, Nest provides **Custom Providers**.
+
+---
+
+# 1. `useValue`
+
+Inject a fixed value or object.
+
+### Example
+
+```ts
+@Module({
+  providers: [
+    {
+      provide: 'APP_NAME',
+      useValue: 'Book My Venue',
+    },
+  ],
+})
+export class AppModule {}
+```
+
+Inject it:
+
+```ts
+@Injectable()
+export class AppService {
+  constructor(
+    @Inject('APP_NAME')
+    private readonly appName: string,
+  ) {}
+
+  getName() {
+    return this.appName;
+  }
+}
+```
+
+Result:
+
+```text
+Book My Venue
+```
+
+---
+
+## Another Example
+
+```ts
+{
+  provide: 'CONFIG',
+  useValue: {
+    database: 'postgres',
+    port: 5432,
+  },
+}
+```
+
+Inject:
+
+```ts
+constructor(
+  @Inject('CONFIG')
+  private readonly config: any,
+) {}
+```
+
+---
+
+# Flow
+
+```text
+Token: 'CONFIG'
+       │
+       ▼
+{ database: 'postgres', port: 5432 }
+       │
+       ▼
+Injected into service
+```
+
+---
+
+# 2. `useClass`
+
+Tell Nest which class to instantiate.
+
+### Example
+
+```ts
+@Injectable()
+export class DevelopmentLogger {
+  log(message: string) {
+    console.log('[DEV]', message);
+  }
+}
+
+@Injectable()
+export class ProductionLogger {
+  log(message: string) {
+    console.log('[PROD]', message);
+  }
+}
+```
+
+Provider:
+
+```ts
+{
+  provide: 'LOGGER',
+  useClass: DevelopmentLogger,
+}
+```
+
+Inject:
+
+```ts
+constructor(
+  @Inject('LOGGER')
+  private readonly logger: DevelopmentLogger,
+) {}
+```
+
+Nest does:
+
+```ts
+const logger = new DevelopmentLogger();
+```
+
+---
+
+## Real Use Case
+
+Development:
+
+```ts
+{
+  provide: 'LOGGER',
+  useClass: DevelopmentLogger,
+}
+```
+
+Production:
+
+```ts
+{
+  provide: 'LOGGER',
+  useClass: ProductionLogger,
+}
+```
+
+Your code never changes:
+
+```ts
+constructor(
+  @Inject('LOGGER')
+  private readonly logger: any,
+) {}
+```
+
+---
+
+# Flow
+
+```text
+Token: 'LOGGER'
+       │
+       ▼
+DevelopmentLogger
+       │
+       ▼
+Nest creates instance
+       │
+       ▼
+Injected into service
+```
+
+---
+
+# 3. `useFactory`
+
+Create the provider using a function.
+
+### Example
+
+```ts
+{
+  provide: 'DATABASE_URL',
+  useFactory: () => {
+    return process.env.DATABASE_URL;
+  },
+}
+```
+
+Inject:
+
+```ts
+constructor(
+  @Inject('DATABASE_URL')
+  private readonly dbUrl: string,
+) {}
+```
+
+---
+
+## Factory Can Use Dependencies
+
+```ts
+{
+  provide: 'APP_MESSAGE',
+  useFactory: (
+    configService: ConfigService,
+  ) => {
+    return `App: ${configService.get('APP_NAME')}`;
+  },
+  inject: [ConfigService],
+}
+```
+
+Nest does:
+
+```text
+Create ConfigService
+       │
+       ▼
+Run factory function
+       │
+       ▼
+Return value
+       │
+       ▼
+Inject result
+```
+
+---
+
+## Real Example
+
+```ts
+{
+  provide: 'DB_CONNECTION',
+  useFactory: () => {
+    return new PrismaClient();
+  },
+}
+```
+
+Nest creates:
+
+```ts
+const db = new PrismaClient();
+```
+
+and injects it wherever needed.
+
+---
+
+# 4. `useExisting`
+
+Create an alias for another provider.
+
+```ts
+@Injectable()
+export class LoggerService {}
+```
+
+Provider:
+
+```ts
+providers: [
+  LoggerService,
+  {
+    provide: 'LOGGER',
+    useExisting: LoggerService,
+  },
+]
+```
+
+Inject:
+
+```ts
+constructor(
+  @Inject('LOGGER')
+  private readonly logger: LoggerService,
+) {}
+```
+
+Nest does:
+
+```ts
+const logger = new LoggerService();
+```
+
+Both tokens point to the same object.
+
+---
+
+# Flow
+
+```text
+LoggerService Instance
+      ▲
+      │
+'LOGGER' Token
+      │
+      ▼
+Same Object
+```
+
+---
+
+# Provider Tokens
+
+Notice:
+
+```ts
+provide: 'LOGGER'
+provide: 'CONFIG'
+provide: 'DATABASE_URL'
+```
+
+These are called **Injection Tokens**.
+
+Think:
+
+```text
+Token → Provider
+```
+
+Examples:
+
+```text
+'LOGGER'        → DevelopmentLogger
+'CONFIG'        → Configuration Object
+'DATABASE_URL'  → Connection String
+```
+
+---
+
+# Real Production Example
+
+```text
+AuthController
+       │
+       ▼
+AuthService
+       │
+       ▼
+@Inject('LOGGER')
+       │
+       ▼
+ProductionLogger
+```
+
+---
+
+# Which One Should I Use?
+
+| Provider Type | Use Case                                           |
+| ------------- | -------------------------------------------------- |
+| `useValue`    | Constants, config objects, API keys                |
+| `useClass`    | Switch implementations                             |
+| `useFactory`  | Complex initialization, environment-based creation |
+| `useExisting` | Alias another provider                             |
+
+---
+
+# Rule of Thumb
+
+```text
+useValue
+    ↓
+Inject a fixed value
+
+useClass
+    ↓
+Inject a class instance
+
+useFactory
+    ↓
+Inject something created by a function
+
+useExisting
+    ↓
+Reuse another provider's instance
+```
+
+---
+
+# Mental Model
+
+```text
+Nest Container
+      │
+      ├── 'CONFIG'
+      │      ↓
+      │   useValue
+      │
+      ├── 'LOGGER'
+      │      ↓
+      │   useClass
+      │
+      ├── 'DB_CONNECTION'
+      │      ↓
+      │   useFactory
+      │
+      └── 'LOGGER_ALIAS'
+             ↓
+         useExisting
+```
+
+**Most common in real projects:**
+
+1. `useFactory` → Database connections, JWT configuration, environment variables.
+2. `useValue` → Constants and configuration objects.
+3. `useClass` → Different implementations for development and production.
+4. `useExisting` → Aliasing and reusing existing providers.
+
