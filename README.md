@@ -608,4 +608,392 @@ getRequest(@Req() req: Request) {
 
 ```
 ```
- 
+ # NestJS Providers and Dependency Injection (DI)
+
+## What is a Provider?
+
+A **Provider** is a class that NestJS can create and manage for you.
+
+Example:
+
+```ts
+@Injectable()
+export class AuthService {
+  login() {
+    return 'Logged in';
+  }
+}
+```
+
+`AuthService` is a provider.
+
+---
+
+## Why Do We Need Providers?
+
+### Without Providers
+
+```ts
+@Controller('auth')
+export class AuthController {
+  private authService = new AuthService();
+
+  @Post('login')
+  login() {
+    return this.authService.login();
+  }
+}
+```
+
+Problems:
+
+* Controller creates the service itself.
+* Tight coupling between classes.
+* Difficult to test.
+* Difficult to replace implementations.
+
+---
+
+### With Providers
+
+```ts
+@Controller('auth')
+export class AuthController {
+  constructor(
+    private readonly authService: AuthService,
+  ) {}
+
+  @Post('login')
+  login() {
+    return this.authService.login();
+  }
+}
+```
+
+You never do this:
+
+```ts
+new AuthService();
+```
+
+NestJS creates and injects the service for you.
+
+---
+
+## How NestJS Creates a Provider
+
+### Step 1: Mark the Class as Injectable
+
+```ts
+@Injectable()
+export class AuthService {}
+```
+
+This tells Nest:
+
+> "This class can participate in Dependency Injection."
+
+---
+
+### Step 2: Register the Provider
+
+```ts
+@Module({
+  providers: [AuthService],
+})
+export class AuthModule {}
+```
+
+This tells Nest:
+
+> "Manage an instance of AuthService."
+
+---
+
+### Step 3: Inject the Provider
+
+```ts
+constructor(
+  private readonly authService: AuthService,
+) {}
+```
+
+Internally, Nest does something similar to:
+
+```ts
+const service = new AuthService();
+const controller = new AuthController(service);
+```
+
+You never write this code yourself.
+
+---
+
+## Provider Creation Flow
+
+```text
+AuthModule
+    │
+    └── providers: [AuthService]
+                  │
+                  ▼
+          Nest creates AuthService
+                  │
+                  ▼
+      Injects it into AuthController
+                  │
+                  ▼
+        Controller can use it
+```
+
+---
+
+## Real Login Example
+
+### Provider
+
+```ts
+@Injectable()
+export class AuthService {
+  login(email: string) {
+    return `Welcome ${email}`;
+  }
+}
+```
+
+### Controller
+
+```ts
+@Controller('auth')
+export class AuthController {
+  constructor(
+    private readonly authService: AuthService,
+  ) {}
+
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto.email);
+  }
+}
+```
+
+---
+
+## Request Flow
+
+```text
+POST /auth/login
+       │
+       ▼
+AuthController.login()
+       │
+       ▼
+AuthService.login()
+       │
+       ▼
+Response
+```
+
+---
+
+## Providers Are Singleton by Default
+
+Nest creates:
+
+```ts
+new AuthService();
+```
+
+only once.
+
+Every request uses the same instance.
+
+Example:
+
+```ts
+@Injectable()
+export class CounterService {
+  count = 0;
+
+  increment() {
+    this.count++;
+    return this.count;
+  }
+}
+```
+
+Request 1:
+
+```text
+count = 1
+```
+
+Request 2:
+
+```text
+count = 2
+```
+
+Same object instance is reused.
+
+---
+
+## Dependency Injection (DI)
+
+Example:
+
+```ts
+@Injectable()
+export class UsersService {}
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly usersService: UsersService,
+  ) {}
+}
+```
+
+Nest sees:
+
+```text
+AuthService
+      │
+      ▼
+needs UsersService
+```
+
+So Nest creates:
+
+```text
+UsersService
+      │
+      ▼
+AuthService
+      │
+      ▼
+AuthController
+```
+
+This process is called **Dependency Injection (DI)**.
+
+---
+
+## Dependency Graph
+
+```text
+UsersService
+      │
+      ▼
+AuthService
+      │
+      ▼
+AuthController
+```
+
+Nest automatically builds this graph.
+
+---
+
+## Providers Are Not Only Services
+
+Any injectable class can be a provider.
+
+```ts
+@Injectable()
+export class EmailService {}
+
+@Injectable()
+export class JwtService {}
+
+@Injectable()
+export class CacheService {}
+```
+
+Register them:
+
+```ts
+@Module({
+  providers: [
+    AuthService,
+    EmailService,
+    JwtService,
+    CacheService,
+  ],
+})
+export class AuthModule {}
+```
+
+---
+
+## Production Example
+
+```text
+AuthController
+       │
+       ▼
+AuthService
+       │
+       ▼
+UsersService
+       │
+       ▼
+PrismaService
+       │
+       ▼
+PostgreSQL
+```
+
+Nest creates and injects every dependency automatically.
+
+---
+
+## Mental Model
+
+Think of NestJS as a company manager.
+
+```text
+NestJS (Manager)
+      │
+      ├── AuthService (Employee)
+      ├── UsersService (Employee)
+      └── EmailService (Employee)
+```
+
+Controller says:
+
+```text
+"I need AuthService."
+```
+
+Nest replies:
+
+```text
+"Here is the AuthService instance."
+```
+
+You never hire employees (`new`) yourself.
+
+Nest hires them and gives them to whoever needs them.
+
+---
+
+## Rule of Thumb
+
+```text
+@Injectable()
+      ↓
+Marks a class as injectable.
+
+providers: []
+      ↓
+Registers the class with Nest.
+
+constructor(...)
+      ↓
+Asks Nest to inject dependencies.
+
+Singleton
+      ↓
+One instance shared across the application.
+```
