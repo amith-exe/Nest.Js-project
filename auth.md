@@ -1385,4 +1385,162 @@ export class LoginDto {
 ⬜ Google OAuth
 ```
 
+# Async & Await in NestJS (Quick Notes)
+
+## What is `async`?
+
+`async` marks a function that performs operations that take time.
+
+Examples:
+
+* Database Queries
+* Password Hashing (`bcrypt`)
+* API Calls
+* Email Sending
+* File Operations
+
+---
+
+## What is `await`?
+
+`await` pauses the current function until a Promise finishes.
+
+```ts
+const user = await this.prisma.user.findUnique();
+```
+
+Meaning:
+
+> Wait for the database query to finish, then continue.
+
+---
+
+## Rule of Thumb
+
+If you use:
+
+```ts
+await something();
+```
+
+the function must be:
+
+```ts
+async functionName() {}
+```
+
+Example:
+
+```ts
+async login() {
+  const user = await this.prisma.user.findUnique();
+  return user;
+}
+```
+
+---
+
+## Why Do We Need It?
+
+Operations like database queries are not instant.
+
+```text
+Application
+     ↓
+Database Query
+     ↓
+Wait for Response
+     ↓
+Continue Execution
+```
+
+Node.js does not block the entire server while waiting.
+
+---
+
+## Common Examples in Authentication
+
+### Register
+
+```ts
+async register() {
+  await this.prisma.user.findUnique();
+  await bcrypt.hash();
+  await this.prisma.user.create();
+}
+```
+
+### Login
+
+```ts
+async login() {
+  await this.prisma.user.findUnique();
+  await bcrypt.compare();
+}
+```
+
+### Email Verification
+
+```ts
+async verifyEmail() {
+  await this.emailService.sendOtp();
+}
+```
+
+---
+
+## Mental Model
+
+```text
+await
+  ↓
+"Pause this function only until the task finishes."
+```
+
+Not:
+
+```text
+❌ Pause the entire server
+```
+
+---
+
+## Easy Way to Remember
+
+Ask yourself:
+
+> Does this operation talk to something outside my function?
+
+Examples:
+
+* Database ✅
+* Network/API ✅
+* Email Service ✅
+* bcrypt Hashing ✅
+* File System ✅
+
+Usually:
+
+```ts
+async functionName() {
+  await something();
+}
+```
+
+---
+
+## Summary
+
+```text
+async
+  ↓
+Function contains asynchronous operations
+
+await
+  ↓
+Wait for a Promise to finish
+
+Rule:
+If you write await, the function must be async.
+```
 
