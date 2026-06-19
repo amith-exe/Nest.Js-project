@@ -755,4 +755,634 @@ Venues
       ↓
 Bookings
 ```
+# Setting Up DTOs in NestJS Authentication
+
+## Login DTO - Book My Venue Backend
+
+---
+
+# What is a DTO?
+
+DTO stands for:
+
+```text
+Data Transfer Object
+```
+
+A DTO is a TypeScript class that defines:
+
+1. The shape of incoming data
+2. Validation rules
+3. Swagger documentation
+
+Think of it as a contract.
+
+```text
+Client
+   ↓
+JSON Request
+   ↓
+DTO
+   ↓
+Validation
+   ↓
+Controller
+   ↓
+Service
+```
+
+---
+
+# Why Do We Need DTOs?
+
+Without DTOs:
+
+```json
+{
+  "email": 123,
+  "password": null
+}
+```
+
+could reach your service and cause errors.
+
+DTOs ensure:
+
+```json
+{
+  "email": "amith@gmail.com",
+  "password": "Password@123"
+}
+```
+
+is the only acceptable format.
+
+---
+
+# Install Required Packages
+
+```bash
+npm install class-validator class-transformer
+```
+
+---
+
+# Why class-validator?
+
+Provides decorators like:
+
+```ts
+@IsEmail()
+@IsString()
+@MinLength()
+@Length()
+@IsUUID()
+```
+
+These validate incoming data.
+
+---
+
+# Why class-transformer?
+
+Converts:
+
+```json
+{
+  "email": "amith@gmail.com",
+  "password": "Password@123"
+}
+```
+
+into:
+
+```ts
+new LoginDto()
+```
+
+Without it, Nest cannot properly transform request bodies into DTO instances.
+
+---
+
+# Project Structure
+
+```text
+src/
+└── auth/
+    ├── dto/
+    │   ├── login.dto.ts
+    │   └── register.dto.ts
+    │
+    ├── auth.controller.ts
+    ├── auth.service.ts
+    └── auth.module.ts
+```
+
+---
+
+# Login Requirements
+
+For login, we need:
+
+```text
+Email
+Password
+```
+
+Request:
+
+```json
+{
+  "email": "amith@gmail.com",
+  "password": "Password@123"
+}
+```
+
+---
+
+# Creating Login DTO
+
+## login.dto.ts
+
+```ts
+import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsString,
+} from 'class-validator';
+
+export class LoginDto {
+  @ApiProperty({
+    example: 'amith@gmail.com',
+    description: 'User email address',
+  })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({
+    example: 'Password@123',
+    description: 'User password',
+  })
+  @IsString()
+  password!: string;
+}
+```
+
+---
+
+# Understanding Each Line
+
+## ApiProperty
+
+```ts
+@ApiProperty({
+  example: 'amith@gmail.com',
+})
+```
+
+Purpose:
+
+```text
+Swagger Documentation
+```
+
+Displays:
+
+```text
+email
+string
+Example:
+amith@gmail.com
+```
+
+in:
+
+```text
+http://localhost:3000/api
+```
+
+---
+
+# IsEmail
+
+```ts
+@IsEmail()
+```
+
+Checks:
+
+```json
+{
+  "email": "amith@gmail.com"
+}
+```
+
+✅ Valid
+
+---
+
+```json
+{
+  "email": "hello"
+}
+```
+
+❌ Invalid
+
+Response:
+
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "email must be an email"
+  ]
+}
+```
+
+---
+
+# IsString
+
+```ts
+@IsString()
+```
+
+Checks:
+
+```json
+{
+  "password": "Password123"
+}
+```
+
+✅ Valid
+
+---
+
+```json
+{
+  "password": 123
+}
+```
+
+❌ Invalid
+
+Response:
+
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "password must be a string"
+  ]
+}
+```
+
+---
+
+# Why use `!`?
+
+```ts
+email!: string;
+password!: string;
+```
+
+The `!` is called the:
+
+```text
+Definite Assignment Assertion Operator
+```
+
+It means:
+
+```text
+I promise this property
+will be assigned later.
+```
+
+---
+
+# Why is this needed?
+
+TypeScript strict mode expects:
+
+```ts
+class LoginDto {
+  email: string;
+}
+```
+
+to be initialized:
+
+```ts
+email = '';
+```
+
+or:
+
+```ts
+constructor() {
+  this.email = '';
+}
+```
+
+Otherwise:
+
+```text
+Property 'email'
+has no initializer
+and is not definitely assigned.
+```
+
+---
+
+# Why does `!` work in DTOs?
+
+Because NestJS automatically assigns values.
+
+Request:
+
+```json
+{
+  "email": "amith@gmail.com",
+  "password": "Password123"
+}
+```
+
+Flow:
+
+```text
+Request Body
+      ↓
+ValidationPipe
+      ↓
+class-transformer
+      ↓
+new LoginDto()
+      ↓
+email assigned
+password assigned
+```
+
+So:
+
+```ts
+email!: string;
+```
+
+is perfectly safe.
+
+---
+
+# Why not use `?`
+
+Example:
+
+```ts
+email?: string;
+```
+
+Type becomes:
+
+```ts
+string | undefined
+```
+
+Meaning:
+
+```text
+email may be undefined
+```
+
+Then everywhere:
+
+```ts
+dto.email
+```
+
+TypeScript assumes:
+
+```ts
+string | undefined
+```
+
+which is unnecessary for login.
+
+---
+
+# Why not use default values?
+
+Example:
+
+```ts
+email: string = '';
+password: string = '';
+```
+
+Works, but:
+
+```text
+Unnecessary
+More code
+Not common in NestJS DTOs
+```
+
+Most NestJS projects use:
+
+```ts
+email!: string;
+password!: string;
+```
+
+---
+
+# Login Request Flow
+
+```text
+Client
+   ↓
+POST /auth/login
+   ↓
+Request Body
+   ↓
+ValidationPipe
+   ↓
+LoginDto
+   ↓
+class-validator
+   ↓
+AuthController
+   ↓
+AuthService
+   ↓
+PrismaService
+   ↓
+Database
+```
+
+---
+
+# Invalid Example
+
+Request:
+
+```json
+{
+  "email": "hello",
+  "password": 123
+}
+```
+
+Validation:
+
+```text
+❌ email must be an email
+❌ password must be a string
+```
+
+Controller never executes.
+
+---
+
+# Valid Example
+
+Request:
+
+```json
+{
+  "email": "amith@gmail.com",
+  "password": "Password@123"
+}
+```
+
+Validation:
+
+```text
+✓ email is valid
+✓ password is string
+```
+
+Controller executes.
+
+---
+
+# Swagger Output
+
+Because of:
+
+```ts
+@ApiProperty()
+```
+
+Swagger automatically generates:
+
+```text
+Authentication
+└── POST /auth/login
+
+Request Body
+
+email
+string
+Example:
+amith@gmail.com
+
+password
+string
+Example:
+Password@123
+```
+
+---
+
+# Using Login DTO in Controller
+
+```ts
+@Post('login')
+login(
+  @Body() dto: LoginDto,
+) {
+  return this.authService.login(dto);
+}
+```
+
+Flow:
+
+```text
+JSON Request
+      ↓
+LoginDto
+      ↓
+Validation
+      ↓
+Controller
+      ↓
+Service
+```
+
+---
+
+# Why DTOs Are Important
+
+DTOs become the single source of truth for:
+
+```text
+Request Structure
+      +
+Validation Rules
+      +
+Swagger Documentation
+```
+
+Everything about the request lives in one place.
+
+---
+
+# Final Login DTO
+
+```ts
+import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsString,
+} from 'class-validator';
+
+export class LoginDto {
+  @ApiProperty({
+    example: 'amith@gmail.com',
+    description: 'User email address',
+  })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({
+    example: 'Password@123',
+    description: 'User password',
+  })
+  @IsString()
+  password!: string;
+}
+```
+
+---
+
+# Next Steps
+
+```text
+✓ Install class-validator
+✓ Install class-transformer
+✓ Create dto folder
+✓ Create LoginDto
+⬜ Create RegisterDto
+⬜ Enable ValidationPipe
+⬜ Build Register Endpoint
+⬜ Build Login Endpoint
+⬜ JWT Authentication
+⬜ Refresh Tokens
+⬜ Email Verification
+⬜ Password Reset
+⬜ Google OAuth
+```
+
 
