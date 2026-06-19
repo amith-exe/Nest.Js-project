@@ -711,4 +711,661 @@ Protected Routes
 req.user
 ```
 
-At this point your authentication system starts behaving like a production backend.
+At this point your authentication system starts behaving like a production backend.# JWT Configuration in NestJS (Production Notes)
+
+# Purpose
+
+The goal of this configuration is:
+
+```text
+Read .env
+    ↓
+Create JWT Configuration Object
+    ↓
+Give Configuration to JwtModule
+    ↓
+JwtModule creates JwtService
+    ↓
+JwtService can generate and verify JWTs
+```
+
+---
+
+# Environment Variables
+
+## .env
+
+```env
+JWT_SECRET=bookmyvenue-secret
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
+```
+
+---
+
+# What is JWT_SECRET?
+
+The secret key used to:
+
+1. Generate JWT signatures
+2. Verify JWT signatures
+
+Flow:
+
+```text
+Payload
+   +
+JWT_SECRET
+   ↓
+Digital Signature
+   ↓
+JWT Token
+```
+
+Example:
+
+```json
+{
+  "sub": "123",
+  "email": "user@example.com",
+  "role": "USER"
+}
+```
+
+Result:
+
+```text
+eyJhbGciOiJIUzI1Ni...
+```
+
+---
+
+# Why do we need JWT_SECRET?
+
+Without a signature:
+
+```json
+{
+  "role": "USER"
+}
+```
+
+could be modified to:
+
+```json
+{
+  "role": "ADMIN"
+}
+```
+
+With JWT_SECRET:
+
+```text
+Payload Modified
+       ↓
+Signature Invalid
+       ↓
+401 Unauthorized
+```
+
+---
+
+# What is JWT_ACCESS_EXPIRES_IN?
+
+Controls how long access tokens remain valid.
+
+Example:
+
+```env
+JWT_ACCESS_EXPIRES_IN=15m
+```
+
+Means:
+
+```text
+Access Token
+      ↓
+Valid for 15 minutes
+      ↓
+Expires
+      ↓
+401 Unauthorized
+```
+
+---
+
+# JwtModule Configuration
+
+```ts
+JwtModule.registerAsync({
+  imports: [ConfigModule],
+  inject: [ConfigService],
+
+  useFactory: (
+    configService: ConfigService,
+  ) => {
+    const secret =
+      configService.get<string>(
+        'JWT_SECRET',
+      );
+
+    const expiresRaw =
+      configService.get<string>(
+        'JWT_ACCESS_EXPIRES_IN',
+      );
+
+    const expiresIn:
+      | number
+      | string
+      | undefined =
+      expiresRaw &&
+      /^[0-9]+$/.test(
+        expiresRaw,
+      )
+        ? parseInt(
+            expiresRaw,
+            10,
+          )
+        : expiresRaw;
+
+    return {
+      secret,
+      signOptions: {
+        expiresIn:
+          expiresIn as any,
+      },
+    };
+  },
+});
+```
+
+---
+
+# Understanding registerAsync()
+
+```ts
+JwtModule.registerAsync(...)
+```
+
+Means:
+
+```text
+Configure JwtModule
+dynamically at runtime.
+```
+
+Flow:
+
+```text
+Nest Starts
+      ↓
+Load ConfigModule
+      ↓
+Create ConfigService
+      ↓
+Read .env
+      ↓
+Configure JwtModule
+      ↓
+Create JwtService
+```
+
+---
+
+# imports
+
+```ts
+imports: [ConfigModule]
+```
+
+Means:
+
+```text
+JwtModule depends on ConfigModule.
+```
+
+Because:
+
+```ts
+ConfigService
+```
+
+comes from:
+
+```ts
+ConfigModule
+```
+
+---
+
+# inject
+
+```ts
+inject: [ConfigService]
+```
+
+Means:
+
+```text
+Nest,
+please create ConfigService
+and give it to my factory function.
+```
+
+Equivalent idea:
+
+```ts
+const configService =
+  new ConfigService();
+```
+
+Nest performs this automatically using Dependency Injection.
+
+---
+
+# useFactory()
+
+```ts
+useFactory:
+(configService) => {
+  ...
+}
+```
+
+This is simply a function.
+
+Equivalent:
+
+```ts
+function createJwtConfig(
+  configService,
+) {
+  ...
+}
+```
+
+Nest executes this function and expects a configuration object to be returned.
+
+---
+
+# Reading JWT_SECRET
+
+```ts
+const secret =
+  configService.get<string>(
+    'JWT_SECRET',
+  );
+```
+
+Suppose:
+
+```env
+JWT_SECRET=bookmyvenue-secret
+```
+
+Result:
+
+```ts
+secret =
+'bookmyvenue-secret'
+```
+
+---
+
+# Return Type
+
+```ts
+string | undefined
+```
+
+Why?
+
+Because TypeScript cannot read your `.env` file.
+
+It thinks:
+
+```text
+Maybe JWT_SECRET exists.
+Maybe it doesn't.
+```
+
+---
+
+# Reading JWT_ACCESS_EXPIRES_IN
+
+```ts
+const expiresRaw =
+  configService.get<string>(
+    'JWT_ACCESS_EXPIRES_IN',
+  );
+```
+
+Suppose:
+
+```env
+JWT_ACCESS_EXPIRES_IN=15m
+```
+
+Result:
+
+```ts
+expiresRaw = '15m'
+```
+
+---
+
+# Why the Extra Logic?
+
+```ts
+const expiresIn =
+  expiresRaw &&
+  /^[0-9]+$/.test(
+    expiresRaw,
+  )
+    ? parseInt(
+        expiresRaw,
+        10,
+      )
+    : expiresRaw;
+```
+
+JWT accepts expiration values in two formats.
+
+---
+
+# Format 1: String
+
+```ts
+expiresIn: '15m'
+expiresIn: '1h'
+expiresIn: '7d'
+```
+
+Examples:
+
+```text
+15m = 15 minutes
+1h = 1 hour
+7d = 7 days
+```
+
+---
+
+# Format 2: Number
+
+```ts
+expiresIn: 3600
+```
+
+Means:
+
+```text
+3600 seconds
+```
+
+---
+
+# Understanding the Logic
+
+## Step 1
+
+```ts
+expiresRaw &&
+```
+
+Checks:
+
+```text
+Does a value exist?
+```
+
+---
+
+## Step 2
+
+```ts
+/^[0-9]+$/.test(
+  expiresRaw,
+)
+```
+
+Checks:
+
+```text
+Does the value contain only digits?
+```
+
+Examples:
+
+```ts
+'3600'
+```
+
+↓
+
+```text
+true
+```
+
+---
+
+```ts
+'15m'
+```
+
+↓
+
+```text
+false
+```
+
+---
+
+# Step 3
+
+If only digits:
+
+```ts
+parseInt(
+  expiresRaw,
+  10,
+)
+```
+
+Example:
+
+```ts
+'3600'
+```
+
+↓
+
+```ts
+3600
+```
+
+(number)
+
+Otherwise:
+
+```ts
+'15m'
+```
+
+stays:
+
+```ts
+'15m'
+```
+
+(string)
+
+---
+
+# What Does useFactory Return?
+
+Suppose:
+
+```env
+JWT_SECRET=bookmyvenue-secret
+JWT_ACCESS_EXPIRES_IN=15m
+```
+
+The factory returns:
+
+```ts
+{
+  secret:
+    'bookmyvenue-secret',
+
+  signOptions: {
+    expiresIn:
+      '15m',
+  },
+}
+```
+
+---
+
+# Why Return This Object?
+
+JwtModule itself does not know:
+
+```text
+What secret should I use?
+How long should tokens live?
+```
+
+Your factory function answers those questions.
+
+---
+
+# What Happens Next?
+
+Nest internally does something similar to:
+
+```ts
+new JwtService({
+  secret:
+    'bookmyvenue-secret',
+
+  signOptions: {
+    expiresIn:
+      '15m',
+  },
+});
+```
+
+Then:
+
+```ts
+this.jwtService.sign(...)
+this.jwtService.signAsync(...)
+this.jwtService.verify(...)
+```
+
+become available.
+
+---
+
+# Complete Startup Flow
+
+```text
+npm run start
+      ↓
+Create ConfigService
+      ↓
+Execute useFactory()
+      ↓
+Read JWT_SECRET
+      ↓
+Read JWT_ACCESS_EXPIRES_IN
+      ↓
+Return:
+{
+  secret,
+  signOptions
+}
+      ↓
+JwtModule receives configuration
+      ↓
+Creates JwtService
+      ↓
+JwtService ready
+```
+
+---
+
+# Dependency Flow
+
+```text
+.env
+ │
+ ├── JWT_SECRET
+ └── JWT_ACCESS_EXPIRES_IN
+          ↓
+ConfigModule
+          ↓
+ConfigService
+          ↓
+useFactory()
+          ↓
+{
+  secret,
+  signOptions
+}
+          ↓
+JwtModule
+          ↓
+JwtService
+          ↓
+AuthService
+          ↓
+sign()
+signAsync()
+verify()
+```
+
+---
+
+# What Have We Built?
+
+At this stage:
+
+```text
+✓ Read JWT settings from .env
+✓ Configure JwtModule
+✓ Create JwtService
+✓ Set JWT secret
+✓ Set JWT expiration
+✓ Make JwtService injectable
+```
+
+Still Remaining:
+
+```text
+☐ Generate Access Token
+☐ Validate Token
+☐ Passport JWT Strategy
+☐ JwtAuthGuard
+☐ Protected Routes
+☐ Refresh Tokens
+```
+
+---
+
+# Mental Model
+
+```text
+Configuration Stage
+       ↓
+Read Environment Variables
+       ↓
+Build JWT Configuration Object
+       ↓
+Create JwtService
+       ↓
+Ready to Generate and Verify JWT Tokens
+```
+
+
