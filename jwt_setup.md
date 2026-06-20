@@ -1368,4 +1368,881 @@ Create JwtService
 Ready to Generate and Verify JWT Tokens
 ```
 
+# JWT Authentication with Passport in NestJS - Complete Notes
+
+# Project Context
+
+Project: Book My Venue (BMV)
+
+Goal:
+
+* User logs in
+* Backend generates JWT token
+* Client sends token on protected requests
+* Backend validates token
+* Backend knows which user made the request
+
+---
+
+# Authentication Flow Overview
+
+```text
+Login Request
+      ↓
+AuthService
+      ↓
+Generate JWT Token
+      ↓
+Client Stores Token
+      ↓
+Protected Request (/auth/me)
+      ↓
+JwtAuthGuard
+      ↓
+JwtStrategy
+      ↓
+Validate JWT
+      ↓
+req.user
+      ↓
+Controller
+```
+
+---
+
+# Airport Analogy
+
+Think of JWT authentication like an airport.
+
+```text
+Passenger (HTTP Request)
+           ↓
+Security Gate (JwtAuthGuard)
+           ↓
+Passport Officer (JwtStrategy)
+           ↓
+Airport Room (Controller)
+```
+
+Responsibilities:
+
+* AuthService → Creates ID card
+* JwtAuthGuard → Checks if ID card is required
+* JwtStrategy → Verifies ID card
+* Controller → Gives access to protected resources
+
+---
+
+# Step 1 - Install Packages
+
+```bash
+npm install @nestjs/jwt
+npm install @nestjs/passport
+npm install passport
+npm install passport-jwt
+```
+
+Purpose:
+
+### @nestjs/jwt
+
+Provides:
+
+```ts
+JwtService
+```
+
+Used for:
+
+* Creating JWTs
+* Verifying JWTs manually
+
+---
+
+### passport
+
+Authentication middleware library.
+
+Provides:
+
+* Authentication framework
+* Strategies support
+
+Passport itself does NOT know JWT.
+
+---
+
+### passport-jwt
+
+Provides JWT authentication strategy.
+
+Knows:
+
+* How to read JWT
+* How to verify JWT
+* How to decode JWT
+
+---
+
+### @nestjs/passport
+
+NestJS wrapper around Passport.
+
+Provides:
+
+* AuthGuard()
+* PassportStrategy()
+
+Makes Passport work nicely with Nest Dependency Injection.
+
+---
+
+# Step 2 - Environment Variables
+
+.env
+
+```env
+JWT_SECRET=my-super-secret-key
+JWT_ACCESS_EXPIRES_IN=15m
+```
+
+---
+
+# JWT_SECRET
+
+Secret key used to sign JWTs.
+
+Example:
+
+```text
+Payload
+   +
+JWT_SECRET
+   ↓
+JWT Signature
+```
+
+When validating:
+
+```text
+JWT
+  +
+JWT_SECRET
+  ↓
+Valid Signature?
+```
+
+If secrets don't match:
+
+```http
+401 Unauthorized
+```
+
+---
+
+# JWT_ACCESS_EXPIRES_IN
+
+Determines token lifetime.
+
+Examples:
+
+```env
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_ACCESS_EXPIRES_IN=1h
+JWT_ACCESS_EXPIRES_IN=3600
+JWT_ACCESS_EXPIRES_IN=7d
+```
+
+---
+
+# Step 3 - Configure JwtModule
+
+auth.module.ts
+
+```ts
+JwtModule.registerAsync({
+  imports: [ConfigModule],
+  inject: [ConfigService],
+
+  useFactory: (
+    configService: ConfigService,
+  ) => {
+    const secret =
+      configService.get<string>(
+        'JWT_SECRET',
+      );
+
+    const expiresRaw =
+      configService.get<string>(
+        'JWT_ACCESS_EXPIRES_IN',
+      );
+
+    const expiresIn =
+      expiresRaw &&
+      /^[0-9]+$/.test(expiresRaw)
+        ? parseInt(
+            expiresRaw,
+            10,
+          )
+        : expiresRaw;
+
+    return {
+      secret,
+      signOptions: {
+        expiresIn,
+      },
+    };
+  },
+})
+```
+
+---
+
+# What this does
+
+Creates and configures:
+
+```ts
+JwtService
+```
+
+using:
+
+```env
+JWT_SECRET
+JWT_ACCESS_EXPIRES_IN
+```
+
+This configuration is later used by:
+
+```ts
+this.jwtService.signAsync()
+```
+
+---
+
+# Step 4 - Configure Passport
+
+```ts
+PassportModule.register({
+  defaultStrategy: 'jwt',
+})
+```
+
+Meaning:
+
+```text
+Default authentication strategy
+          ↓
+jwt
+```
+
+Passport now knows:
+
+```text
+Authentication strategy name = jwt
+```
+
+---
+
+# Why "jwt"?
+
+Because later:
+
+```ts
+AuthGuard('jwt')
+```
+
+will use:
+
+```text
+Strategy named "jwt"
+```
+
+---
+
+# Step 5 - Create JWT Token
+
+auth.service.ts
+
+```ts
+private async getAccessToken(
+  userId: string,
+  email: string,
+  role: string,
+) {
+  const payload = {
+    sub: userId,
+    email,
+    role,
+  };
+
+  return this.jwtService.signAsync(
+    payload,
+  );
+}
+```
+
+---
+
+# Payload
+
+Payload means:
+
+Information stored inside JWT.
+
+Example:
+
+```ts
+{
+  sub: '123',
+  email: 'user@gmail.com',
+  role: 'USER',
+}
+```
+
+---
+
+# Why "sub"?
+
+sub means:
+
+Subject of the token.
+
+Usually:
+
+```ts
+sub = user.id
+```
+
+Industry standard.
+
+---
+
+# Result
+
+Generated token:
+
+```text
+eyJhbGciOiJIUzI1Ni...
+```
+
+This token is returned to client.
+
+---
+
+# Step 6 - Create JWT Strategy
+
+jwt.strategy.ts
+
+```ts
+@Injectable()
+export class JwtStrategy
+  extends PassportStrategy(
+    Strategy,
+  ) {
+  constructor(
+    private readonly configService:
+      ConfigService,
+  ) {
+    const secret =
+      configService.get<string>(
+        'JWT_SECRET',
+      );
+
+    if (!secret) {
+      throw new Error(
+        'JWT_SECRET missing',
+      );
+    }
+
+    super({
+      jwtFromRequest:
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey:
+        secret,
+    });
+  }
+
+  async validate(
+    payload: any,
+  ) {
+    return {
+      userId:
+        payload.sub,
+      email:
+        payload.email,
+      role:
+        payload.role,
+    };
+  }
+}
+```
+
+---
+
+# What is PassportStrategy()?
+
+PassportStrategy() is a class factory.
+
+Simplified:
+
+```ts
+function PassportStrategy(
+  strategy,
+) {
+  return class extends strategy {};
+}
+```
+
+So:
+
+```ts
+extends PassportStrategy(
+  Strategy,
+)
+```
+
+means:
+
+```text
+Take JWT Strategy
+      ↓
+Create Nest-compatible class
+      ↓
+Inherit from it
+```
+
+---
+
+# Constructor
+
+```ts
+super({
+  ...
+})
+```
+
+Configures Passport JWT.
+
+---
+
+# jwtFromRequest
+
+```ts
+jwtFromRequest:
+ExtractJwt.fromAuthHeaderAsBearerToken()
+```
+
+Means:
+
+Read token from:
+
+```http
+Authorization:
+Bearer eyJ...
+```
+
+Passport automatically extracts:
+
+```text
+eyJ...
+```
+
+You do NOT manually read:
+
+```ts
+req.headers.authorization
+```
+
+Passport does it.
+
+---
+
+# ignoreExpiration
+
+```ts
+ignoreExpiration: false
+```
+
+Meaning:
+
+```text
+Token expired?
+      ↓
+Reject request
+```
+
+Result:
+
+```http
+401 Unauthorized
+```
+
+---
+
+# secretOrKey
+
+```ts
+secretOrKey: secret
+```
+
+Uses:
+
+```env
+JWT_SECRET
+```
+
+to verify JWT signature.
+
+---
+
+# validate()
+
+Passport already verified:
+
+* Signature
+* Expiration
+
+Then Passport calls:
+
+```ts
+validate(payload)
+```
+
+Example payload:
+
+```ts
+{
+  sub: '123',
+  email: 'user@gmail.com',
+  role: 'USER',
+  iat: ...,
+  exp: ...
+}
+```
+
+Return:
+
+```ts
+{
+  userId: payload.sub,
+  email: payload.email,
+  role: payload.role,
+}
+```
+
+Passport automatically does:
+
+```ts
+req.user = {
+  userId: '123',
+  email: 'user@gmail.com',
+  role: 'USER',
+}
+```
+
+---
+
+# IMPORTANT
+
+validate() does NOT validate JWT.
+
+Passport already did that.
+
+validate() only decides:
+
+```text
+What should become req.user?
+```
+
+---
+
+# Step 7 - Create Guard
+
+jwt.guard.ts
+
+```ts
+@Injectable()
+export class JwtAuthGuard
+  extends AuthGuard(
+    'jwt',
+  ) {}
+```
+
+---
+
+# What is AuthGuard('jwt')?
+
+Means:
+
+```text
+This route requires authentication.
+Use strategy named "jwt".
+```
+
+Guard does NOT know JWT.
+
+Guard simply says:
+
+```text
+Use JwtStrategy.
+```
+
+---
+
+# Responsibilities
+
+Guard answers:
+
+```text
+Should authentication happen?
+```
+
+Strategy answers:
+
+```text
+How should authentication happen?
+```
+
+---
+
+# Step 8 - Protect Route
+
+```ts
+@Get('me')
+@UseGuards(
+  JwtAuthGuard,
+)
+getMe(@Req() req) {
+  return req.user;
+}
+```
+
+---
+
+# What is @UseGuards()?
+
+Means:
+
+```text
+Before entering controller
+run JwtAuthGuard
+```
+
+---
+
+# What is req?
+
+req = Express Request object.
+
+Contains:
+
+```ts
+req.headers
+req.body
+req.query
+req.params
+req.user
+```
+
+---
+
+# req.user
+
+Added automatically by Passport.
+
+Comes from:
+
+```ts
+validate()
+```
+
+---
+
+# Request Flow
+
+Client:
+
+```http
+GET /auth/me
+Authorization:
+Bearer eyJ...
+```
+
+↓
+
+Guard:
+
+```text
+Protected route.
+Use jwt strategy.
+```
+
+↓
+
+Strategy:
+
+```text
+Extract token
+Verify secret
+Check expiration
+Decode payload
+```
+
+↓
+
+validate():
+
+```ts
+return {
+  userId,
+  email,
+  role,
+}
+```
+
+↓
+
+Passport:
+
+```ts
+req.user = {
+  userId,
+  email,
+  role,
+}
+```
+
+↓
+
+Controller:
+
+```ts
+return req.user
+```
+
+Response:
+
+```json
+{
+  "userId": "123",
+  "email": "user@gmail.com",
+  "role": "USER"
+}
+```
+
+---
+
+# Complete JWT Flow
+
+```text
+POST /auth/login
+        ↓
+Find User
+        ↓
+Verify Password
+        ↓
+Create Payload
+        ↓
+JwtService.signAsync()
+        ↓
+JWT Token
+        ↓
+Client Stores Token
+        ↓
+GET /auth/me
+Authorization:
+Bearer eyJ...
+        ↓
+JwtAuthGuard
+        ↓
+JwtStrategy
+        ↓
+Verify Signature
+        ↓
+Check Expiration
+        ↓
+validate()
+        ↓
+req.user
+        ↓
+Controller
+        ↓
+Response
+```
+
+---
+
+# Responsibilities Summary
+
+AuthService
+→ Creates JWT
+
+JwtModule
+→ Configures token generation
+
+PassportModule
+→ Enables Passport authentication
+
+JwtStrategy
+→ Explains how JWT should be validated
+
+JwtAuthGuard
+→ Protects routes
+
+validate()
+→ Decides what goes into req.user
+
+Controller
+→ Uses req.user
+
+Request Object
+→ Holds authenticated user information
+
+---
+
+# Mental Model
+
+```text
+AuthService
+      ↓
+Creates ID Card
+
+JwtAuthGuard
+      ↓
+Checks whether ID card is required
+
+JwtStrategy
+      ↓
+Checks whether ID card is genuine
+
+validate()
+      ↓
+Creates req.user
+
+Controller
+      ↓
+Uses req.user
+```
+
+For Book My Venue:
+
+```text
+Signup ✅
+Login ✅
+JWT Generation ✅
+Passport Setup ✅
+JwtStrategy ✅
+JwtAuthGuard ✅
+Protected Routes ✅
+
+Next:
+Refresh Tokens
+Google OAuth
+Role Guards
+RBAC
+OTP Verification
+```
 
